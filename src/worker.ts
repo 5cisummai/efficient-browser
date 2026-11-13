@@ -2,7 +2,7 @@ import { start } from 'node:repl';
 import type { Domain } from 'node:domain';
 import { PassThrough } from 'node:stream';
 import { inspect, format } from 'node:util';
-import { chromium, type Page } from 'playwright-core';
+import { chromium, errors, type Locator, type Page } from 'playwright-core';
 import { observations } from './snapshot.js';
 
 const endpoint = process.argv[2];
@@ -81,6 +81,28 @@ Object.assign(repl.context, {
   closeTab: (id: number) => lookup(id).close(),
   snapshot: (page: Page, options?: Parameters<typeof snapshot>[1]) =>
     snapshot(rawPages.get(page) ?? page, options),
+  async observeAfter(action: () => unknown, {
+    waitFor, state = 'visible', timeout = 2500, ...options
+  }: NonNullable<Parameters<typeof snapshot>[1]> & {
+    waitFor: Locator;
+    state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    timeout?: number;
+  }) {
+    await action();
+    let reached = true;
+    try {
+      await waitFor.waitFor({ state, timeout });
+    } catch (error) {
+      if (!(error instanceof errors.TimeoutError)) throw error;
+      reached = false;
+    }
+    if (current === undefined) throw new Error('No active tab to observe.');
+    const result = await snapshot(lookup(current), options);
+    return {
+      reached,
+      observation: reached ? result.diff ?? result.tree : result.tree,
+    };
+  },
 });
 Object.defineProperties(repl.context, {
   page: { get: () => current === undefined ? undefined : wrap(lookup(current)) },

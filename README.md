@@ -6,7 +6,8 @@ A persistent JavaScript REPL for Chromium. Requires Node 24 or newer.
 npm ci
 npx playwright-core install chromium --only-shell
 npm run build
-node dist/cli.js repl
+npm link
+ebrowser repl
 ```
 
 On Linux, add `--with-deps` to install system dependencies. Use `--cdp <endpoint>` to attach to an existing Chromium instance. Attached tabs are listed in `tabs`; select one with `useTab(id)`. Exiting detaches from an externally owned browser.
@@ -17,7 +18,17 @@ In the terminal, or over `repl --jsonl`, send one cell at a time:
 await openTab("https://example.com"); console.log((await snapshot(page)).tree);
 ```
 
-Use a ref from that observation with `page.getByRef(ref)`. After acting, print `diff ?? tree` from the next snapshot. Use `{ mode: "full" }` for reading content or `{ scope: page.getByRole("main") }` to inspect a region. Keep the same locator object across calls to diff a scoped view.
+Use a ref from that observation with `page.getByRef(ref)`. After acting, print `diff ?? tree` from the next snapshot. Use `{ mode: "full" }` for reading content or `{ scope: page.getByRole("main") }` to inspect a region. Compact snapshots focus on a visible dialog, menu, or listbox when it contains text or controls. Use full mode to see the background or scope a snapshot to another region. Keep the same locator object across calls to diff a scoped view. Distant changes appear in separate diff hunks.
+
+To act and verify in the same REPL cell, use `observeAfter`. Take an initial snapshot first if you want a diff.
+
+```js
+await observeAfter(() => page.getByRef(ref).click(), {
+  waitFor: page.getByRole("heading", { name: "Results" }),
+});
+```
+
+It runs the action once, waits up to 2.5 seconds by default, and returns `{ reached, observation }`. If the condition times out, `reached` is false and the observation is a fresh tree. Use `state: "hidden"` to wait for something to disappear. An empty dialog leaves the main page in view.
 
 JSONL accepts `{ "id": 1, "code": "..." }` and returns `{ id, ok, output, error? }`. Keep stdin open to retain tabs and JS bindings. Embedders can use `createSession()`, `session.run(code)`, and `session.close()`. A 30-second cell deadline ends the session. If a timed-out cell dispatched an action, inspect the browser before retrying.
 

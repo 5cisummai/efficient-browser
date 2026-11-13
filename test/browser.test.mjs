@@ -65,3 +65,78 @@ test('a popup receives a tab ID without replacing the active tab', async () => {
     await session.close();
   }
 });
+
+test('compact snapshots prioritize a dialog and retain text beside unnamed controls', async () => {
+  const session = await createSession();
+  try {
+    const result = await session.run(`
+      await openTab('about:blank');
+      await page.setContent('<main><button>Background action</button></main><dialog><p>Which way is north?</p><div><input type="radio">Toward the pole</div><button>Close</button></dialog>');
+      await page.locator('dialog').evaluate(dialog => dialog.showModal());
+      const before = await snapshot(page);
+      await page.locator('dialog').evaluate(dialog => dialog.close());
+      const after = await snapshot(page);
+      console.log(JSON.stringify({ before: before.tree, after }));
+    `);
+    assert.equal(result.ok, true, result.error);
+    const { before, after } = JSON.parse(result.output);
+    assert.match(before, /Which way is north\?/);
+    assert.match(before, /radio.*\n.*Toward the pole/);
+    assert.doesNotMatch(before, /Background action/);
+    assert.match(after.tree, /Background action/);
+    assert.equal(after.diff, null);
+  } finally {
+    await session.close();
+  }
+});
+
+test('distant page changes produce separate diff hunks', async () => {
+  const session = await createSession();
+  try {
+    const result = await session.run(`
+      await openTab('about:blank');
+      await page.setContent('<button>First</button>' + Array.from({length: 20}, (_, i) => '<button>Middle ' + i + '</button>').join('') + '<button>Last</button>');
+      await snapshot(page);
+      await page.getByRole('button', { name: 'First' }).evaluate(button => button.textContent = 'Started');
+      await page.getByRole('button', { name: 'Last' }).evaluate(button => button.textContent = 'Finished');
+      console.log((await snapshot(page)).diff);
+    `);
+    assert.equal(result.ok, true, result.error);
+    assert.match(result.output, /Started/);
+    assert.match(result.output, /Finished/);
+    assert.equal(result.output.match(/^@@ /gm)?.length, 2);
+    assert.doesNotMatch(result.output, /Middle 10/);
+  } finally {
+    await session.close();
+  }
+});
+
+test('observeAfter waits for the intended state and keeps the page visible behind an empty dialog', async () => {
+  const session = await createSession();
+  try {
+    const result = await session.run(`
+      await openTab('about:blank');
+      await page.setContent('<dialog open><div></div></dialog><button onclick="setTimeout(() => document.querySelector(&quot;h1&quot;).hidden = false, 50)">Show result</button><h1 hidden>Ready</h1>');
+      const before = await snapshot(page);
+      const after = await observeAfter(() => page.getByRole('button').click(), {
+        waitFor: page.getByRole('heading', { name: 'Ready' })
+      });
+      let calls = 0;
+      const missed = await observeAfter(() => { calls++; }, {
+        waitFor: page.getByRole('heading', { name: 'Missing' }), timeout: 50
+      });
+      console.log(JSON.stringify({ before: before.tree, after, missed, calls }));
+    `);
+    assert.equal(result.ok, true, result.error);
+    const { before, after, missed, calls } = JSON.parse(result.output);
+    assert.match(before, /Show result/);
+    assert.doesNotMatch(before, /Background omitted/);
+    assert.equal(after.reached, true);
+    assert.match(after.observation, /Ready/);
+    assert.equal(missed.reached, false);
+    assert.match(missed.observation, /Show result/);
+    assert.equal(calls, 1);
+  } finally {
+    await session.close();
+  }
+});

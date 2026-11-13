@@ -9,7 +9,7 @@ async function main() {
     options: { jsonl: { type: 'boolean' }, cdp: { type: 'string' }, help: { type: 'boolean' } },
   });
   if (values.help || positionals.length !== 1 || positionals[0] !== 'repl') {
-    console.log('Usage: efficient-browser repl [--jsonl] [--cdp <endpoint>]');
+    console.log('Usage: ebrowser repl [--jsonl] [--cdp <endpoint>]');
     process.exitCode = values.help ? 0 : 1;
     return;
   }
