@@ -1,0 +1,26 @@
+{
+  "name": "efficient-browser",
+  "version": "1.0.0",
+  "description": "Persistent JavaScript browser harness",
+  "scripts": {
+    "test": "npm run build && node --test test/*.test.mjs",
+    "build": "tsc"
+  },
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "efficient-browser": "./dist/cli.js"
+  },
+  "exports": "./dist/session.js",
+  "dependencies": {
+    "playwright-core": "1.65.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2"
+  },
+  "private": true
+}
