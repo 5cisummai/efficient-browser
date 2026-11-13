@@ -6,7 +6,10 @@ import { chromium, errors, type Locator, type Page } from 'playwright-core';
 import { observations } from './snapshot.js';
 
 const endpoint = process.argv[2];
-const browser = endpoint ? await chromium.connectOverCDP(endpoint) : await chromium.launch();
+const browser = await (endpoint ? chromium.connectOverCDP(endpoint) : chromium.launch()).catch(async error => {
+  await new Promise<void>(resolve => process.send?.({ startupError: String(error) }, () => resolve()));
+  process.exit(1);
+});
 const context = endpoint ? browser.contexts()[0] : await browser.newContext();
 if (!context) throw new Error('Attached browser has no default context.');
 context.setDefaultTimeout(10_000);
@@ -123,7 +126,10 @@ process.on('message', (message: { code: string } | { close: true }) => {
     if (finished) return;
     finished = true;
     domain.removeListener('error', finish);
-    if (!error && value !== undefined) output.push(inspect(value, { depth: 3 }));
+    if (!error && value !== undefined) {
+      const page = rawPages.get(value as Page);
+      output.push(page ? `Page ${page.url()}` : inspect(value, { depth: 3 }));
+    }
     process.send?.({ ok: !error, output: output.join('\n'), ...(error && { error: String(error) }) });
   };
   domain.prependOnceListener('error', finish);

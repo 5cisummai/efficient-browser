@@ -35,7 +35,8 @@ export async function createSession({ cdp, timeoutMs = 30_000 }: {
     });
   }
   void exited.then(() => { closed = true; }, () => { closed = true; });
-  await receive(30_000);
+  const ready = await receive<{ startupError?: string }>(30_000);
+  if (ready.startupError) throw new Error(ready.startupError);
 
   let queue: Promise<unknown> = Promise.resolve();
   return {

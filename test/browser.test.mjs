@@ -140,3 +140,21 @@ test('observeAfter waits for the intended state and keeps the page visible behin
     await session.close();
   }
 });
+
+test('separate js commands share bindings and tabs until closed', async () => {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const name = `test-${process.pid}`;
+  const cli = (...args) => run(process.execPath, ['dist/cli.js', ...args, '--session', name]);
+  try {
+    await cli('js', 'const marker = 42; const tab = await openTab("about:blank");');
+    assert.equal((await cli('js', 'console.log(marker, tab.url())')).stdout.trim(), '42 about:blank');
+    await assert.rejects(cli('js', 'throw new Error("test failure")'), { code: 1 });
+    assert.equal((await cli('js', 'console.log(marker)')).stdout.trim(), '42');
+    await cli('close');
+    assert.equal((await cli('js', 'console.log(typeof marker, tabs.length)')).stdout.trim(), 'undefined 0');
+  } finally {
+    await cli('close');
+  }
+});

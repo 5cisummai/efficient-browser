@@ -37,3 +37,13 @@ Run model-generated JavaScript inside a dedicated sandbox. The evaluator can exe
 Run `npm test` for browser integration checks and `node scripts/benchmark.mjs` for the synthetic multi-tab benchmark after building.
 
 The initial Vercel benchmark opened four synthetic table tabs. The 2 GB and 4 GB configurations both completed it, with median warm snapshot calls of 42 ms and 26 ms respectively. The reported cgroup high-water marks were 1,221 MiB and 1,223 MiB and include setup activity. Compact output was 12,051 bytes versus 15,406 bytes for raw Playwright output, with the compact output hitting its size cap. Use 4 GB for initial deployment until representative pages have been measured.
+
+Run `ebrowser` or `ebrowser --help` to see the commands. Separate shell calls can share the same browser and JavaScript state.
+
+```sh
+ebrowser js 'const tab = await openTab("https://example.com")'
+ebrowser js 'console.log(await tab.title())'
+ebrowser close
+```
+
+Sessions are scoped to the current directory. Use `--session <name>` on each call to keep runs separate, and `--cdp <endpoint>` on the first call to attach to an existing browser. Sessions close after 15 minutes without a command. Failed cells exit with status 1.
